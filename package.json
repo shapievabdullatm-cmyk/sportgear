@@ -1,0 +1,43 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
+    "@pinia/nuxt": "^0.11.3",
+    "@primeuix/themes": "^2.0.3",
+    "@tiptap/extension-color": "^3.23.6",
+    "@tiptap/extension-highlight": "^3.23.6",
+    "@tiptap/extension-image": "^3.23.6",
+    "@tiptap/extension-link": "^3.23.6",
+    "@tiptap/extension-placeholder": "^3.23.6",
+    "@tiptap/extension-text-align": "^3.23.6",
+    "@tiptap/extension-text-style": "^3.23.6",
+    "@tiptap/extension-underline": "^3.23.6",
+    "@tiptap/starter-kit": "^3.23.6",
+    "@tiptap/vue-3": "^3.23.6",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.22.0",
+    "nitropack": "^2.13.3",
+    "nuxt": "^4.4.2",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.31",
+    "vue-advanced-cropper": "^2.8.9",
+    "vue-router": "^5.0.4",
+    "vue3-carousel": "^0.17.0"
+  },
+  "devDependencies": {
+    "@iconify-json/material-symbols": "^1.2.69",
+    "@nuxt/icon": "^2.2.1",
+    "@nuxtjs/tailwindcss": "^6.14.0",
+    "@tailwindcss/postcss": "^4.2.2",
+    "tailwindcss": "^3.4.19"
+  }
+}

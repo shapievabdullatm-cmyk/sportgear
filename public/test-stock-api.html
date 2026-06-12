@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Stock API</title>
+</head>
+<body>
+    <h1>Test Stock Management API</h1>
+
+    <h2>1. Test Warehouses API</h2>
+    <button onclick="testWarehouses()">Load Warehouses</button>
+    <pre id="warehouses-result"></pre>
+
+    <h2>2. Test Stocks API</h2>
+    <button onclick="testStocks()">Load Stocks</button>
+    <pre id="stocks-result"></pre>
+
+    <h2>3. Test Products Search</h2>
+    <input type="text" id="search-input" placeholder="Search products">
+    <button onclick="testProductSearch()">Search</button>
+    <pre id="products-result"></pre>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        const TOKEN = localStorage.getItem('token') || 'test-token';
+
+        async function testWarehouses() {
+            const result = document.getElementById('warehouses-result');
+            result.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/warehouses`, {
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                result.textContent = JSON.stringify(data, null, 2);
+                console.log('Warehouses:', data);
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+
+        async function testStocks() {
+            const result = document.getElementById('stocks-result');
+            result.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/stocks`, {
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                result.textContent = JSON.stringify(data, null, 2);
+                console.log('Stocks:', data);
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+
+        async function testProductSearch() {
+            const result = document.getElementById('products-result');
+            const search = document.getElementById('search-input').value;
+            result.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/products?search=${encodeURIComponent(search)}&per_page=10`, {
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                result.textContent = JSON.stringify(data, null, 2);
+                console.log('Products:', data);
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+
+        console.log('Token:', TOKEN);
+        console.log('API Base:', API_BASE);
+    </script>
+</body>
+</html>
