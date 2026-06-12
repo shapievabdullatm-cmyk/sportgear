@@ -853,5 +853,8 @@ onUnmounted(() => {
     .modal-footer  { flex-direction: column; gap: 8px; }
     .save-btn      { width: 100%; text-align: center; }
     .cancel-btn    { width: 100%; text-align: center; }
+
+    /* iOS Safari зумит при фокусе на инпуты с шрифтом < 16px */
+    .uf-input { font-size: 16px; }
 }
 </style>
