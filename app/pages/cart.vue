@@ -660,7 +660,7 @@ useHead({
   height: 140px;
   border-radius: 10px;
   overflow: hidden;
-  background: #F4F2EC;
+  background: #EDEDEF;
   flex-shrink: 0;
 }
 
@@ -727,7 +727,7 @@ useHead({
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: #F4F2EC;
+  background: #EDEDEF;
   border-radius: 999px;
   font-size: 12px;
   color: #4A4A4A;
@@ -776,7 +776,7 @@ useHead({
 .item-quantity {
   display: inline-flex;
   align-items: center;
-  background: #F7F6F2;
+  background: #EDEDEF;
   border: 1px solid #ECEAE5;
   border-radius: 10px;
   padding: 2px;
