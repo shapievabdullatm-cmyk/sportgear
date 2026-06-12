@@ -50,7 +50,7 @@ const auth = useAuthStore()
 }
 
 .nav-active {
-  color: #111 !important;
+  color: #C1121C !important;
   font-weight: 600;
 }
 
