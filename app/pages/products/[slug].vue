@@ -1,7 +1,31 @@
 <template>
   <div class="product-page">
-    <div v-if="pending" class="loading">
-      Загрузка...
+    <div v-if="pending" class="product-container product-skeleton">
+      <div class="breadcrumbs-skeleton">
+        <div class="skel skel-line w-30"></div>
+      </div>
+      <div class="product-content">
+        <div class="product-gallery">
+          <div class="thumbnails skel-thumbnails">
+            <div v-for="n in 4" :key="n" class="skel skel-thumb"></div>
+          </div>
+          <div class="main-image skel skel-main"></div>
+        </div>
+        <div class="product-info skel-info">
+          <div class="skel skel-line" style="height: 28px; width: 75%;"></div>
+          <div class="skel skel-line w-30" style="height: 14px;"></div>
+          <div class="skel skel-line" style="height: 32px; width: 45%; margin-top: 8px;"></div>
+          <div class="skel-variants">
+            <div v-for="n in 3" :key="n" class="skel skel-variant"></div>
+          </div>
+          <div class="skel-sizes">
+            <div v-for="n in 5" :key="n" class="skel skel-size"></div>
+          </div>
+          <div class="skel skel-cta"></div>
+          <div class="skel skel-line w-60" style="margin-top: 12px;"></div>
+          <div class="skel skel-line w-50"></div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="error">
@@ -435,6 +459,72 @@ const breadcrumbs = computed(() => response.value?.breadcrumbs || [])
 const relatedProducts = computed(() => response.value?.related_products || [])
 const similarProducts = computed(() => response.value?.similar_products || [])
 const boughtTogetherProducts = computed(() => response.value?.bought_together_products || [])
+
+function stripHtml(html: string | null | undefined, max = 160): string {
+  if (!html) return ''
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  return text.length > max ? text.slice(0, max - 1).trimEnd() + '…' : text
+}
+
+const seoTitle = computed(() => {
+  const title = product.value?.external_title || product.value?.title
+  return title ? `${title} — Rage Gear` : 'Rage Gear'
+})
+
+const seoDescription = computed(() => {
+  if (product.value?.description) return stripHtml(product.value.description)
+  if (product.value?.title) {
+    const price = product.value.price ? `${Math.round(Number(product.value.price)).toLocaleString('ru-RU')} ₽` : ''
+    return `${product.value.title}${price ? ` — ${price}` : ''}. Купить в интернет-магазине спортивных товаров Rage Gear.`
+  }
+  return 'Интернет-магазин спортивных товаров Rage Gear.'
+})
+
+const seoImage = computed(() => product.value?.images?.[0]?.url || '')
+
+useSeoMeta({
+  title: () => seoTitle.value,
+  description: () => seoDescription.value,
+  ogTitle: () => seoTitle.value,
+  ogDescription: () => seoDescription.value,
+  ogImage: () => seoImage.value,
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: () => seoTitle.value,
+  twitterDescription: () => seoDescription.value,
+  twitterImage: () => seoImage.value,
+})
+
+useHead(() => {
+  if (!product.value) return {}
+  const images = product.value.images?.map((i: any) => i.url) || []
+  const priceNum = product.value.price ? Number(product.value.price) : null
+  const inStock = (product.value.total_stock ?? 0) > 0
+  const jsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    name: product.value.external_title || product.value.title,
+    image: images,
+    description: stripHtml(product.value.description, 300),
+  }
+  if (product.value.article) jsonLd.sku = product.value.article
+  if (priceNum) {
+    jsonLd.offers = {
+      '@type': 'Offer',
+      priceCurrency: 'RUB',
+      price: priceNum,
+      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+    }
+  }
+  return {
+    script: [
+      {
+        type: 'application/ld+json',
+        innerHTML: JSON.stringify(jsonLd),
+      },
+    ],
+  }
+})
 
 // Загрузка таблицы размеров
 const sizeTable = ref(null)
@@ -2392,4 +2482,100 @@ useHead({
     display: none;
   }
 }
+
+/* ===== Skeleton ===== */
+.skel {
+  background: linear-gradient(90deg, #F1EFEA 0%, #F7F6F2 50%, #F1EFEA 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes skel-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.product-skeleton {
+  background: transparent;
+}
+
+.breadcrumbs-skeleton {
+  margin-bottom: 30px;
+}
+
+.skel-line {
+  height: 14px;
+}
+
+.skel-thumbnails {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skel-thumb {
+  width: 60px;
+  height: 90px;
+  border-radius: 8px;
+}
+
+.skel-main {
+  background: linear-gradient(90deg, #F1EFEA 0%, #F7F6F2 50%, #F1EFEA 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+.skel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skel-variants {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.skel-variant {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+}
+
+.skel-sizes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.skel-size {
+  width: 56px;
+  height: 44px;
+  border-radius: 10px;
+}
+
+.skel-cta {
+  height: 54px;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.w-30 { width: 30%; }
+.w-50 { width: 50%; }
+.w-60 { width: 60%; }
+
+@media (max-width: 768px) {
+  .skel-thumbnails {
+    flex-direction: row;
+  }
+  .skel-thumb {
+    width: 60px;
+    height: 60px;
+  }
+}
+
 </style>
