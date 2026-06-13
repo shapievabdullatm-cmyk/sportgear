@@ -149,14 +149,14 @@ useHead({ title: 'Избранное' })
 
       <!-- Пусто -->
       <div v-else-if="wishlistStore.isEmpty" class="empty-state">
-        <div class="empty-illustration">
-          <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
+        <span class="empty-eyebrow">Избранное · Пусто</span>
+        <span class="empty-accent" aria-hidden="true"></span>
+        <h2>Список ещё не собран</h2>
+        <p>Сохраняйте понравившиеся товары — они будут ждать вас здесь и легко переедут в корзину.</p>
+        <div class="empty-actions">
+          <NuxtLink to="/" class="empty-cta">Перейти в каталог</NuxtLink>
+          <NuxtLink to="/cart" class="empty-link">Открыть корзину<span aria-hidden="true">→</span></NuxtLink>
         </div>
-        <h2>В избранном пока пусто</h2>
-        <p>Сохраняйте товары, чтобы вернуться к ним позже или быстро переложить в корзину.</p>
-        <NuxtLink to="/" class="btn-primary">К покупкам</NuxtLink>
       </div>
 
       <!-- Список -->
@@ -324,37 +324,97 @@ useHead({ title: 'Избранное' })
 /* ── Empty state ─────────────────────────────────────────────────── */
 .empty-state {
   background: #fff;
-  border-radius: 20px;
-  padding: 64px 24px;
+  border-radius: 24px;
+  padding: 104px 32px;
   text-align: center;
   border: 1px solid #ECEAE5;
 }
 
-.empty-illustration {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FEF2F3 0%, #FFE4E6 100%);
-  color: #C1121C;
-  margin-bottom: 20px;
+.empty-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8B8B8B;
+  margin-bottom: 28px;
+}
+
+.empty-accent {
+  display: block;
+  width: 40px;
+  height: 2px;
+  background: #C1121C;
+  margin: 0 auto 28px;
 }
 
 .empty-state h2 {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0 0 10px;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
   color: #1A1A1A;
+  line-height: 1.15;
 }
 
 .empty-state p {
   font-size: 15px;
   color: #6B6B6B;
-  margin: 0 auto 24px;
-  max-width: 400px;
-  line-height: 1.5;
+  margin: 0 auto 36px;
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.empty-actions {
+  display: inline-flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.empty-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  background: #C1121C;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: background 0.2s;
+}
+
+.empty-cta:hover {
+  background: #A50F18;
+}
+
+.empty-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1A1A1A;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1A1A1A;
+  transition: opacity 0.2s;
+}
+
+.empty-link:hover {
+  opacity: 0.6;
+}
+
+.empty-link span {
+  transition: transform 0.2s;
+}
+
+.empty-link:hover span {
+  transform: translateX(3px);
 }
 
 .btn-primary {
@@ -650,12 +710,13 @@ useHead({ title: 'Избранное' })
   .wl-count { font-size: 12px; }
   .btn-move-all { width: 100%; justify-content: center; padding: 12px 16px; }
 
-  .empty-state { padding: 48px 20px; border-radius: 16px; }
-  .empty-illustration { width: 110px; height: 110px; }
-  .empty-illustration svg { width: 80px; height: 80px; }
-  .empty-state h2 { font-size: 20px; }
-  .empty-state p  { font-size: 14px; }
-  .btn-primary    { width: 100%; }
+  .empty-state { padding: 64px 20px; border-radius: 18px; }
+  .empty-eyebrow { font-size: 10px; margin-bottom: 20px; }
+  .empty-accent { margin-bottom: 22px; }
+  .empty-state h2 { font-size: 24px; }
+  .empty-state p  { font-size: 14px; margin-bottom: 28px; }
+  .empty-actions  { flex-direction: column; gap: 18px; width: 100%; }
+  .empty-cta      { width: 100%; }
 
   .wl-item {
     grid-template-columns: 84px 1fr;

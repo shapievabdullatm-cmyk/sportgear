@@ -19,18 +19,13 @@
 
       <!-- Пустая корзина -->
       <div v-if="cartStore.isEmpty && cartStore.initialized" class="empty-cart">
-        <div class="empty-illustration">
-          <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="21" r="1"/>
-            <circle cx="20" cy="21" r="1"/>
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-          </svg>
-        </div>
-        <h2>В корзине пока пусто</h2>
-        <p>Самое время выбрать что-нибудь стоящее — у нас широкий ассортимент спортивных товаров.</p>
+        <span class="empty-eyebrow">Корзина · Пусто</span>
+        <span class="empty-accent" aria-hidden="true"></span>
+        <h2>Здесь пока ничего нет</h2>
+        <p>Подберите что-нибудь стоящее из каталога — мы подготовили большой ассортимент спортивных товаров.</p>
         <div class="empty-actions">
-          <NuxtLink to="/" class="btn-primary">К покупкам</NuxtLink>
-          <NuxtLink to="/wishlist" class="btn-ghost">Открыть избранное</NuxtLink>
+          <NuxtLink to="/" class="empty-cta">Перейти в каталог</NuxtLink>
+          <NuxtLink to="/wishlist" class="empty-link">Открыть избранное<span aria-hidden="true">→</span></NuxtLink>
         </div>
       </div>
 
@@ -529,44 +524,97 @@ useHead({
 /* ===== Empty state ===== */
 .empty-cart {
   background: #fff;
-  border-radius: 20px;
-  padding: 80px 24px;
+  border-radius: 24px;
+  padding: 112px 32px;
   text-align: center;
   border: 1px solid #ECEAE5;
 }
 
-.empty-illustration {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FEF2F3 0%, #FFE4E6 100%);
-  color: #C1121C;
-  margin-bottom: 24px;
+.empty-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8B8B8B;
+  margin-bottom: 28px;
+}
+
+.empty-accent {
+  display: block;
+  width: 40px;
+  height: 2px;
+  background: #C1121C;
+  margin: 0 auto 28px;
 }
 
 .empty-cart h2 {
-  font-size: 26px;
-  font-weight: 700;
-  margin: 0 0 12px;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
   color: #1A1A1A;
+  line-height: 1.15;
 }
 
 .empty-cart p {
-  font-size: 16px;
+  font-size: 15px;
   color: #6B6B6B;
-  margin: 0 auto 28px;
-  max-width: 420px;
-  line-height: 1.5;
+  margin: 0 auto 36px;
+  max-width: 380px;
+  line-height: 1.6;
 }
 
 .empty-actions {
   display: inline-flex;
-  gap: 12px;
+  gap: 28px;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+}
+
+.empty-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  background: #C1121C;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: background 0.2s;
+}
+
+.empty-cta:hover {
+  background: #A50F18;
+}
+
+.empty-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1A1A1A;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1A1A1A;
+  transition: opacity 0.2s;
+}
+
+.empty-link:hover {
+  opacity: 0.6;
+}
+
+.empty-link span {
+  transition: transform 0.2s;
+}
+
+.empty-link:hover span {
+  transform: translateX(3px);
 }
 
 .btn-primary {
@@ -1263,36 +1311,35 @@ useHead({
   }
 
   .empty-cart {
-    padding: 56px 20px;
-    border-radius: 16px;
+    padding: 72px 20px;
+    border-radius: 18px;
   }
 
-  .empty-illustration {
-    width: 120px;
-    height: 120px;
+  .empty-eyebrow {
+    font-size: 10px;
+    margin-bottom: 20px;
   }
 
-  .empty-illustration svg {
-    width: 90px;
-    height: 90px;
+  .empty-accent {
+    margin-bottom: 22px;
   }
 
   .empty-cart h2 {
-    font-size: 22px;
+    font-size: 26px;
   }
 
   .empty-cart p {
     font-size: 14px;
+    margin-bottom: 28px;
   }
 
   .empty-actions {
-    display: flex;
     flex-direction: column;
+    gap: 18px;
     width: 100%;
   }
 
-  .empty-actions .btn-primary,
-  .empty-actions .btn-ghost {
+  .empty-cta {
     width: 100%;
   }
 
