@@ -15,9 +15,9 @@
         <span class="separator">/</span>
         <template v-for="(crumb, index) in breadcrumbs" :key="crumb.id">
           <NuxtLink :to="`/catalog/${crumb.slug}`">{{ crumb.title }}</NuxtLink>
-          <span class="separator">/</span>
+          <span v-if="index < breadcrumbs.length - 1" class="separator">/</span>
         </template>
-        <span class="current">{{ product.title }}</span>
+        <span class="current-desktop-only"><span class="separator">/</span>{{ product.title }}</span>
       </div>
 
       <div class="product-content">
@@ -35,14 +35,29 @@
             </button>
           </div>
 
-          <div class="main-image">
-            <img
+          <div
+              class="main-image"
+              @touchstart="onMainTouchStart"
+              @touchmove="onMainTouchMove"
+              @touchend="onMainTouchEnd"
+              @touchcancel="onMainTouchEnd"
+          >
+            <div
                 v-if="product.images && product.images.length > 0"
-                :src="product.images[selectedImageIndex]?.url"
-                :alt="product.title"
-                class="main-img"
-                @click="openGallery(selectedImageIndex)"
-            />
+                class="main-image-track"
+                :class="{ dragging: mainIsDragging }"
+                :style="{ transform: `translate3d(calc(${-selectedImageIndex * 100}% + ${mainDragOffset}px), 0, 0)` }"
+            >
+              <img
+                  v-for="(image, idx) in product.images"
+                  :key="idx"
+                  :src="image.url"
+                  :alt="`${product.title} - ${idx + 1}`"
+                  class="main-img"
+                  draggable="false"
+                  @click="onMainImageClick(idx)"
+              />
+            </div>
             <div v-else class="no-image">Нет изображения</div>
           </div>
         </div>
@@ -390,6 +405,13 @@ const galleryIndex = ref(0)
 const touchStartX = ref(0)
 const touchEndX = ref(0)
 const isMobile = ref(false)
+
+const mainTouchStartX = ref(0)
+const mainTouchStartY = ref(0)
+const mainDragOffset = ref(0)
+const mainIsDragging = ref(false)
+const mainAxisLocked = ref<null | 'x' | 'y'>(null)
+const mainSuppressClick = ref(false)
 const selectedSize = ref<number | null>(null)
 const sizeDropdownOpen = ref(false)
 const boughtTogetherSliderRef = ref<HTMLElement | null>(null)
@@ -578,6 +600,57 @@ function handleTouchStart(e: TouchEvent) {
 function handleTouchEnd(e: TouchEvent) {
   touchEndX.value = e.changedTouches[0].clientX
   handleSwipe()
+}
+
+function onMainTouchStart(e: TouchEvent) {
+  const images = product.value?.images || []
+  if (images.length < 2) return
+  mainTouchStartX.value = e.touches[0].clientX
+  mainTouchStartY.value = e.touches[0].clientY
+  mainDragOffset.value = 0
+  mainIsDragging.value = true
+  mainAxisLocked.value = null
+  mainSuppressClick.value = false
+}
+
+function onMainTouchMove(e: TouchEvent) {
+  if (!mainIsDragging.value) return
+  const dx = e.touches[0].clientX - mainTouchStartX.value
+  const dy = e.touches[0].clientY - mainTouchStartY.value
+  if (mainAxisLocked.value === null) {
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+      mainAxisLocked.value = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    }
+  }
+  if (mainAxisLocked.value === 'x') {
+    mainDragOffset.value = dx
+    if (Math.abs(dx) > 5) mainSuppressClick.value = true
+  }
+}
+
+function onMainTouchEnd() {
+  if (!mainIsDragging.value) return
+  const images = product.value?.images || []
+  const dx = mainDragOffset.value
+  const threshold = 50
+  if (mainAxisLocked.value === 'x' && Math.abs(dx) > threshold) {
+    if (dx < 0 && selectedImageIndex.value < images.length - 1) {
+      selectedImageIndex.value++
+    } else if (dx > 0 && selectedImageIndex.value > 0) {
+      selectedImageIndex.value--
+    }
+  }
+  mainDragOffset.value = 0
+  mainIsDragging.value = false
+  mainAxisLocked.value = null
+}
+
+function onMainImageClick(idx: number) {
+  if (mainSuppressClick.value) {
+    mainSuppressClick.value = false
+    return
+  }
+  openGallery(idx)
 }
 
 function scrollBoughtTogether(direction: 1 | -1) {
@@ -831,6 +904,7 @@ useHead({
   color: #666;
   text-decoration: none;
   transition: color 0.2s;
+  white-space: nowrap;
 }
 
 .breadcrumbs a:hover {
@@ -841,8 +915,12 @@ useHead({
   color: #ccc;
 }
 
-.current {
+.current-desktop-only {
   color: #1a1a1a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .product-container {
@@ -881,17 +959,31 @@ useHead({
   background: #f4f4f4;
   border-radius: 12px;
   overflow: hidden;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.main-image-track {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease;
+  will-change: transform;
+}
+
+.main-image-track.dragging {
+  transition: none;
 }
 
 .main-img {
+  flex: 0 0 100%;
   width: 100%;
   height: 100%;
   object-fit: cover;
   cursor: pointer;
-  transition: opacity 0.2s;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: auto;
 }
 
 .main-img:hover {
@@ -2087,8 +2179,23 @@ useHead({
   }
 
   .breadcrumbs {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-size: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+  }
+
+  .breadcrumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .current-desktop-only {
+    display: none;
   }
 
   .product-content {
