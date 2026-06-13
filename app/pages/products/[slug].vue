@@ -1046,7 +1046,7 @@ useHead({
 .main-image {
   flex: 1;
   aspect-ratio: 2 / 3;
-  background: #f4f4f4;
+  background: #EDEDEF;
   border-radius: 12px;
   overflow: hidden;
   position: relative;
@@ -1094,7 +1094,7 @@ useHead({
   cursor: pointer;
   transition: border-color 0.2s;
   flex-shrink: 0;
-  background: #f4f4f4;
+  background: #EDEDEF;
   padding: 0;
 }
 
@@ -1557,44 +1557,44 @@ useHead({
 
 .quantity-control {
   width: 300px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  border: 2px solid #1a1a1a;
-  border-radius: 100px;
-  padding: 5px 16px;
-  background: #fff;
+  background: #EDEDEF;
+  border-radius: 999px;
+  padding: 6px;
+  border: none;
 }
 
 .qty-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
+  background: #fff;
+  border: 1px solid #E8E6E0;
+  color: #1A1A1A;
   cursor: pointer;
-  color: #1a1a1a;
-  transition: all 0.2s;
-  border-radius: 8px;
+  transition: background 0.2s, opacity 0.2s;
+  border-radius: 50%;
 }
 
 .qty-btn:hover:not(:disabled) {
-  background: #f4f4f4;
+  background: #FAFAF8;
 }
 
 .qty-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .qty-display {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-  min-width: 40px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+  min-width: 24px;
   text-align: center;
 }
 
