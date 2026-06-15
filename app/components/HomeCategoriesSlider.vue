@@ -200,11 +200,15 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
   scrollbar-width: none;
   padding-bottom: 2px;
   padding-right: 48px;
+  will-change: scroll-position;
 }
 
 .categories-track::-webkit-scrollbar {
@@ -222,22 +226,26 @@ onMounted(() => {
   border-radius: 10px;
   overflow: hidden;
   background-color: #ededef;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
 }
 
-.category-card:hover {
-  background-color: #515151;
-}
+@media (hover: hover) {
+  .category-card:hover {
+    background-color: #515151;
+  }
 
-.category-card:hover .card-image-wrapper {
-  background-color: #515151;
-}
+  .category-card:hover .card-image-wrapper {
+    background-color: #515151;
+  }
 
-.category-card:hover .card-label {
-  background-color: #515151;
-}
+  .category-card:hover .card-label {
+    background-color: #515151;
+  }
 
-.category-card:hover .card-title {
-  color: #ffffff;
+  .category-card:hover .card-title {
+    color: #ffffff;
+  }
 }
 
 /* ── Image wrapper ── */
@@ -338,6 +346,7 @@ onMounted(() => {
   .skeleton {
     flex: 0 0 calc((100% - 12px * 1.5) / 2.5);
     border-radius: 5px;
+    scroll-snap-align: none;
   }
 
   .skeleton::after {
@@ -347,6 +356,13 @@ onMounted(() => {
 
   .categories-track {
     padding-right: 0;
+    scroll-snap-type: none;
+  }
+
+  .card-image-wrapper,
+  .card-label,
+  .card-title {
+    transition: none;
   }
 
   .categories-title {

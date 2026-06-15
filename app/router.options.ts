@@ -8,6 +8,10 @@ export default <RouterConfig>{
       return { el: to.hash, top: 80, behavior: 'smooth' }
     }
 
+    if (from && to.path === from.path) {
+      return false
+    }
+
     if (from && to.name === from.name && to.path !== from.path) {
       return false
     }
