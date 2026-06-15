@@ -9,8 +9,27 @@ definePageMeta({ middleware: 'auth' })
 
 const orderStore = useOrderStore()
 
-onMounted(() => {
-    orderStore.fetchAll()
+const sentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+onMounted(async () => {
+    await orderStore.fetchAll(1)
+
+    if (typeof IntersectionObserver === 'undefined') return
+    observer = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting) {
+            orderStore.fetchNext()
+        }
+    }, { rootMargin: '300px 0px' })
+
+    watchEffect(() => {
+        if (sentinel.value && observer) observer.observe(sentinel.value)
+    })
+})
+
+onBeforeUnmount(() => {
+    observer?.disconnect()
+    observer = null
 })
 
 function formatDate(iso: string): string {
@@ -92,6 +111,21 @@ useHead({ title: 'Мои заказы' })
                             </div>
                         </div>
                     </NuxtLink>
+
+                    <div
+                        v-if="orderStore.hasMore"
+                        ref="sentinel"
+                        class="orders-sentinel"
+                        aria-hidden="true"
+                    />
+
+                    <div v-if="orderStore.loadingMore" class="orders-list">
+                        <div v-for="n in 2" :key="`m-${n}`" class="order-card order-skeleton">
+                            <div class="skel skel-title" />
+                            <div class="skel skel-line" />
+                            <div class="skel skel-line skel-line--short" />
+                        </div>
+                    </div>
                 </div>
             </template>
         </main>
@@ -124,6 +158,7 @@ useHead({ title: 'Мои заказы' })
 .text-link { color: #111; text-decoration: underline; text-underline-offset: 3px; }
 
 .orders-list { display: flex; flex-direction: column; gap: 14px; }
+.orders-sentinel { height: 1px; }
 
 .order-card {
     display: flex; flex-direction: column; gap: 14px;
