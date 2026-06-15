@@ -5,8 +5,8 @@
       <div class="categories-nav">
         <button
             class="nav-btn"
-            :class="{ disabled: scrollPos <= 0 }"
-            @click="scrollLeft"
+            :class="{ disabled: offset >= 0 - 1 }"
+            @click="nudge(-1)"
             aria-label="Назад"
         >
           <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -16,7 +16,7 @@
         <button
             class="nav-btn"
             :class="{ disabled: isAtEnd }"
-            @click="scrollRight"
+            @click="nudge(1)"
             aria-label="Вперёд"
         >
           <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -27,44 +27,54 @@
     </div>
 
     <!-- Skeleton -->
-    <div v-if="!fetched && items.length === 0" class="categories-track">
-      <div v-for="n in 5" :key="n" class="skeleton" />
+    <div v-if="!fetched && items.length === 0" class="categories-viewport">
+      <div class="categories-track">
+        <div v-for="n in 5" :key="n" class="skeleton" />
+      </div>
     </div>
 
     <!-- Cards -->
     <div
         v-else
-        ref="trackRef"
-        class="categories-track"
-        @scroll.passive="onScroll"
+        ref="viewportRef"
+        class="categories-viewport"
+        :class="{ grabbing: isDragging }"
     >
-      <NuxtLink
-          v-for="item in items"
-          :key="item.id"
-          :to="`/catalog/${item.slug}`"
-          class="category-card"
+      <div
+          ref="trackRef"
+          class="categories-track"
       >
-        <div class="card-image-wrapper">
-          <img
-              v-if="item.image"
-              :src="item.image"
-              :alt="item.title"
-              class="card-image"
-              loading="lazy"
-          />
-          <div v-else class="card-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
+        <NuxtLink
+            v-for="item in items"
+            :key="item.id"
+            :to="`/catalog/${item.slug}`"
+            class="category-card"
+            draggable="false"
+            @click="onCardClick"
+        >
+          <div class="card-image-wrapper">
+            <img
+                v-if="item.image"
+                :src="item.image"
+                :alt="item.title"
+                class="card-image"
+                loading="lazy"
+                draggable="false"
+            />
+            <div v-else class="card-placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
           </div>
-        </div>
 
-        <div class="card-label">
-          <span class="card-title">{{ item.title }}</span>
-        </div>
-      </NuxtLink>
+          <div class="card-label">
+            <span class="card-title">{{ item.title }}</span>
+          </div>
+        </NuxtLink>
+      </div>
     </div>
   </section>
 </template>
@@ -81,47 +91,246 @@ interface PopularItem {
 
 const { $api } = useApi()
 
-const loading   = ref(true)
-const items     = ref<PopularItem[]>([])
-const trackRef  = ref<HTMLElement | null>(null)
-const scrollPos = ref(0)
-const isAtEnd   = ref(false)
-const fetched   = ref(false)
+const items       = ref<PopularItem[]>([])
+const fetched     = ref(false)
+const viewportRef = ref<HTMLElement | null>(null)
+const trackRef    = ref<HTMLElement | null>(null)
+
+const isDragging  = ref(false)
+const offset      = ref(0)
+
+let currentOffset = 0
+let startOffset = 0
+let startX = 0
+let lastX = 0
+let lastT = 0
+let velocity = 0
+let minOffset = 0
+let suppressClick = false
+let rafId: number | null = null
+let dragging = false
+
+const isAtEnd = computed(() => offset.value <= minOffset + 1)
+
+function setTransform(x: number) {
+  const t = trackRef.value
+  if (!t) return
+  t.style.transform = `translate3d(${x}px, 0, 0)`
+}
+
+function setTransition(value: string) {
+  const t = trackRef.value
+  if (!t) return
+  t.style.transition = value
+}
+
+function recalcBounds() {
+  const v = viewportRef.value
+  const t = trackRef.value
+  if (!v || !t) return
+  minOffset = Math.min(0, v.clientWidth - t.scrollWidth)
+  if (currentOffset < minOffset) currentOffset = minOffset
+  if (currentOffset > 0) currentOffset = 0
+  offset.value = currentOffset
+  setTransform(currentOffset)
+}
 
 async function load() {
   try {
     const res = await $api<{ data: PopularItem[] }>('/popular-categories')
     items.value = res.data ?? []
     fetched.value = true
-  } finally {
-    loading.value = false
+    await nextTick()
+    recalcBounds()
+  } catch {
+    fetched.value = true
   }
 }
 
+function clampWithRubber(x: number): number {
+  if (x > 0) return x * 0.35
+  if (x < minOffset) return minOffset + (x - minOffset) * 0.35
+  return x
+}
+
+function cancelMomentum() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
+}
+
+function dragStart(x: number) {
+  cancelMomentum()
+  startX = x
+  lastX = x
+  lastT = performance.now()
+  velocity = 0
+  startOffset = currentOffset
+  suppressClick = false
+  dragging = true
+  isDragging.value = true
+  setTransition('none')
+}
+
+function dragMove(x: number) {
+  if (!dragging) return
+  const dx = x - startX
+
+  const now = performance.now()
+  const dt = now - lastT
+  if (dt > 0) velocity = (x - lastX) / dt
+  lastX = x
+  lastT = now
+
+  currentOffset = clampWithRubber(startOffset + dx)
+  setTransform(currentOffset)
+
+  if (Math.abs(dx) > 3) suppressClick = true
+}
+
+function dragEnd() {
+  if (!dragging) return
+  dragging = false
+  isDragging.value = false
+  offset.value = currentOffset
+  startMomentum()
+}
+
+function startMomentum() {
+  if (currentOffset > 0 || currentOffset < minOffset) {
+    snapBack()
+    return
+  }
+
+  let v = velocity * 16
+  const friction = 0.94
+
+  const step = () => {
+    v *= friction
+    currentOffset += v
+    if (currentOffset > 0) {
+      currentOffset = 0
+      offset.value = 0
+      setTransform(0)
+      rafId = null
+      return
+    }
+    if (currentOffset < minOffset) {
+      currentOffset = minOffset
+      offset.value = minOffset
+      setTransform(minOffset)
+      rafId = null
+      return
+    }
+    setTransform(currentOffset)
+    if (Math.abs(v) < 0.2) {
+      offset.value = currentOffset
+      rafId = null
+      return
+    }
+    rafId = requestAnimationFrame(step)
+  }
+  rafId = requestAnimationFrame(step)
+}
+
+function snapBack() {
+  const target = currentOffset > 0 ? 0 : minOffset
+  currentOffset = target
+  offset.value = target
+  setTransition('transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1)')
+  setTransform(target)
+}
+
+/* ── Touch handlers (mobile) ─────────────────────────────── */
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return
+  dragStart(e.touches[0]!.clientX)
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!dragging || e.touches.length !== 1) return
+  e.preventDefault()
+  dragMove(e.touches[0]!.clientX)
+}
+
+function onTouchEnd() {
+  dragEnd()
+}
+
+/* ── Mouse handlers (desktop) ────────────────────────────── */
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  dragStart(e.clientX)
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
+function onMouseMove(e: MouseEvent) {
+  dragMove(e.clientX)
+}
+
+function onMouseUp() {
+  dragEnd()
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+}
+
+function onCardClick(e: MouseEvent) {
+  if (suppressClick) {
+    e.preventDefault()
+    e.stopPropagation()
+    suppressClick = false
+  }
+}
+
+const STEP = 300
+function nudge(dir: 1 | -1) {
+  cancelMomentum()
+  const target = Math.max(minOffset, Math.min(0, currentOffset - dir * STEP))
+  currentOffset = target
+  offset.value = target
+  setTransition('transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)')
+  setTransform(target)
+}
+
+let ro: ResizeObserver | null = null
+
 onMounted(async () => {
   await load()
+
+  const vp = viewportRef.value
+  if (vp) {
+    vp.addEventListener('touchstart', onTouchStart, { passive: true })
+    vp.addEventListener('touchmove', onTouchMove, { passive: false })
+    vp.addEventListener('touchend', onTouchEnd)
+    vp.addEventListener('touchcancel', onTouchEnd)
+    vp.addEventListener('mousedown', onMouseDown)
+  }
+
+  if (typeof ResizeObserver !== 'undefined' && vp) {
+    ro = new ResizeObserver(recalcBounds)
+    ro.observe(vp)
+    if (trackRef.value) ro.observe(trackRef.value)
+  }
+  window.addEventListener('resize', recalcBounds)
 })
 
-function onScroll() {
-  const el = trackRef.value
-  if (!el) return
-  scrollPos.value = el.scrollLeft
-  isAtEnd.value   = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4
-}
-
-const SCROLL_STEP = 300
-
-function scrollLeft() {
-  trackRef.value?.scrollBy({ left: -SCROLL_STEP, behavior: 'smooth' })
-}
-
-function scrollRight() {
-  trackRef.value?.scrollBy({ left: SCROLL_STEP, behavior: 'smooth' })
-}
-
-onMounted(() => {
-  const el = trackRef.value
-  if (el) isAtEnd.value = el.scrollWidth <= el.clientWidth
+onBeforeUnmount(() => {
+  cancelMomentum()
+  const vp = viewportRef.value
+  if (vp) {
+    vp.removeEventListener('touchstart', onTouchStart)
+    vp.removeEventListener('touchmove', onTouchMove)
+    vp.removeEventListener('touchend', onTouchEnd)
+    vp.removeEventListener('touchcancel', onTouchEnd)
+    vp.removeEventListener('mousedown', onMouseDown)
+  }
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+  ro?.disconnect()
+  window.removeEventListener('resize', recalcBounds)
 })
 </script>
 
@@ -178,47 +387,37 @@ onMounted(() => {
   width: auto;
   height: 28px;
   border: none;
-  border-radius: 0;
   background: transparent;
   cursor: pointer;
   color: #1a1a1a;
   transition: opacity 0.15s;
   padding: 0;
 }
+.nav-btn:hover { opacity: 0.5; }
+.nav-btn.disabled { opacity: 0.22; pointer-events: none; }
 
-.nav-btn:hover {
-  opacity: 0.5;
+/* ── Viewport / Track ──────────────────────────────────────── */
+.categories-viewport {
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
 }
 
-.nav-btn.disabled {
-  opacity: 0.22;
-  pointer-events: none;
-}
+.categories-viewport.grabbing { cursor: grabbing; }
 
-/* ── Track ───────────────────────────────────────────────── */
 .categories-track {
   display: flex;
   gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  touch-action: pan-x;
-  scrollbar-width: none;
-  padding-bottom: 2px;
+  will-change: transform;
   padding-right: 48px;
-  will-change: scroll-position;
-}
-
-.categories-track::-webkit-scrollbar {
-  display: none;
+  transform: translate3d(0, 0, 0);
 }
 
 /* ── Card ────────────────────────────────────────────────── */
 .category-card {
   flex: 0 0 260px;
-  scroll-snap-align: start;
   text-decoration: none;
   color: inherit;
   display: flex;
@@ -227,28 +426,16 @@ onMounted(() => {
   overflow: hidden;
   background-color: #ededef;
   -webkit-tap-highlight-color: transparent;
-  transform: translateZ(0);
+  -webkit-user-drag: none;
 }
 
 @media (hover: hover) {
-  .category-card:hover {
-    background-color: #515151;
-  }
-
-  .category-card:hover .card-image-wrapper {
-    background-color: #515151;
-  }
-
-  .category-card:hover .card-label {
-    background-color: #515151;
-  }
-
-  .category-card:hover .card-title {
-    color: #ffffff;
-  }
+  .category-card:hover { background-color: #515151; }
+  .category-card:hover .card-image-wrapper { background-color: #515151; }
+  .category-card:hover .card-label { background-color: #515151; }
+  .category-card:hover .card-title { color: #ffffff; }
 }
 
-/* ── Image wrapper ── */
 .card-image-wrapper {
   position: relative;
   width: 100%;
@@ -266,6 +453,7 @@ onMounted(() => {
   height: 100%;
   object-fit: contain;
   display: block;
+  pointer-events: none;
 }
 
 .card-placeholder {
@@ -305,7 +493,6 @@ onMounted(() => {
 /* ── Skeleton ────────────────────────────────────────────── */
 .skeleton {
   flex: 0 0 260px;
-  scroll-snap-align: start;
   border-radius: 10px;
   background-color: #ededef;
   overflow: hidden;
@@ -346,7 +533,6 @@ onMounted(() => {
   .skeleton {
     flex: 0 0 calc((100% - 12px * 1.5) / 2.5);
     border-radius: 5px;
-    scroll-snap-align: none;
   }
 
   .skeleton::after {
@@ -356,13 +542,6 @@ onMounted(() => {
 
   .categories-track {
     padding-right: 0;
-    scroll-snap-type: none;
-  }
-
-  .card-image-wrapper,
-  .card-label,
-  .card-title {
-    transition: none;
   }
 
   .categories-title {
@@ -380,6 +559,12 @@ onMounted(() => {
 
   .card-title {
     font-size: 10px;
+  }
+
+  .card-image-wrapper,
+  .card-label,
+  .card-title {
+    transition: none;
   }
 }
 </style>
