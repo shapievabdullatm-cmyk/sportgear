@@ -5,7 +5,7 @@
       <div class="categories-nav">
         <button
             class="nav-btn"
-            :class="{ disabled: offset >= 0 - 1 }"
+            :class="{ disabled: offset >= 0 }"
             @click="nudge(-1)"
             aria-label="Назад"
         >
@@ -39,6 +39,10 @@
         ref="viewportRef"
         class="categories-viewport"
         :class="{ grabbing: isDragging }"
+        tabindex="0"
+        role="region"
+        aria-label="Популярные категории"
+        @keydown="onKeyDown"
     >
       <div
           ref="trackRef"
@@ -105,12 +109,12 @@ let startX = 0
 let lastX = 0
 let lastT = 0
 let velocity = 0
-let minOffset = 0
+const minOffset = ref(0)
 let suppressClick = false
 let rafId: number | null = null
 let dragging = false
 
-const isAtEnd = computed(() => offset.value <= minOffset + 1)
+const isAtEnd = computed(() => offset.value <= minOffset.value + 1)
 
 function setTransform(x: number) {
   const t = trackRef.value
@@ -128,8 +132,8 @@ function recalcBounds() {
   const v = viewportRef.value
   const t = trackRef.value
   if (!v || !t) return
-  minOffset = Math.min(0, v.clientWidth - t.scrollWidth)
-  if (currentOffset < minOffset) currentOffset = minOffset
+  minOffset.value = Math.min(0, v.clientWidth - t.scrollWidth)
+  if (currentOffset < minOffset.value) currentOffset = minOffset.value
   if (currentOffset > 0) currentOffset = 0
   offset.value = currentOffset
   setTransform(currentOffset)
@@ -149,7 +153,7 @@ async function load() {
 
 function clampWithRubber(x: number): number {
   if (x > 0) return x * 0.35
-  if (x < minOffset) return minOffset + (x - minOffset) * 0.35
+  if (x < minOffset.value) return minOffset.value + (x - minOffset.value) * 0.35
   return x
 }
 
@@ -198,7 +202,7 @@ function dragEnd() {
 }
 
 function startMomentum() {
-  if (currentOffset > 0 || currentOffset < minOffset) {
+  if (currentOffset > 0 || currentOffset < minOffset.value) {
     snapBack()
     return
   }
@@ -216,10 +220,10 @@ function startMomentum() {
       rafId = null
       return
     }
-    if (currentOffset < minOffset) {
-      currentOffset = minOffset
-      offset.value = minOffset
-      setTransform(minOffset)
+    if (currentOffset < minOffset.value) {
+      currentOffset = minOffset.value
+      offset.value = minOffset.value
+      setTransform(minOffset.value)
       rafId = null
       return
     }
@@ -235,7 +239,7 @@ function startMomentum() {
 }
 
 function snapBack() {
-  const target = currentOffset > 0 ? 0 : minOffset
+  const target = currentOffset > 0 ? 0 : minOffset.value
   currentOffset = target
   offset.value = target
   setTransition('transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1)')
@@ -243,19 +247,38 @@ function snapBack() {
 }
 
 /* ── Touch handlers (mobile) ─────────────────────────────── */
+let startTouchX = 0
+let startTouchY = 0
+let axisLocked: null | 'x' | 'y' = null
+const AXIS_THRESHOLD = 6
+
 function onTouchStart(e: TouchEvent) {
   if (e.touches.length !== 1) return
-  dragStart(e.touches[0]!.clientX)
+  axisLocked = null
+  startTouchX = e.touches[0]!.clientX
+  startTouchY = e.touches[0]!.clientY
 }
 
 function onTouchMove(e: TouchEvent) {
-  if (!dragging || e.touches.length !== 1) return
-  e.preventDefault()
-  dragMove(e.touches[0]!.clientX)
-}
+  if (e.touches.length !== 1) return
+  const t = e.touches[0]!
 
-function onTouchEnd() {
-  dragEnd()
+  if (axisLocked === null) {
+    const dx = Math.abs(t.clientX - startTouchX)
+    const dy = Math.abs(t.clientY - startTouchY)
+    if (dx < AXIS_THRESHOLD && dy < AXIS_THRESHOLD) return
+    if (dy > dx) {
+      axisLocked = 'y'
+      return
+    }
+    axisLocked = 'x'
+    dragStart(startTouchX)
+  }
+
+  if (axisLocked === 'x' && dragging) {
+    e.preventDefault()
+    dragMove(t.clientX)
+  }
 }
 
 /* ── Mouse handlers (desktop) ────────────────────────────── */
@@ -288,11 +311,36 @@ function onCardClick(e: MouseEvent) {
 const STEP = 300
 function nudge(dir: 1 | -1) {
   cancelMomentum()
-  const target = Math.max(minOffset, Math.min(0, currentOffset - dir * STEP))
+  const target = Math.max(minOffset.value, Math.min(0, currentOffset - dir * STEP))
   currentOffset = target
   offset.value = target
   setTransition('transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)')
   setTransform(target)
+}
+
+/* ── Wheel (trackpad horizontal swipe) ───────────────────── */
+function onWheel(e: WheelEvent) {
+  const absX = Math.abs(e.deltaX)
+  const absY = Math.abs(e.deltaY)
+  const dx = absX > absY ? e.deltaX : (e.shiftKey ? e.deltaY : 0)
+  if (dx === 0) return
+  e.preventDefault()
+  cancelMomentum()
+  setTransition('none')
+  currentOffset = Math.max(minOffset.value, Math.min(0, currentOffset - dx))
+  offset.value = currentOffset
+  setTransform(currentOffset)
+}
+
+/* ── Keyboard arrows ─────────────────────────────────────── */
+function onKeyDown(e: KeyboardEvent) {
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    nudge(-1)
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    nudge(1)
+  }
 }
 
 let ro: ResizeObserver | null = null
@@ -304,9 +352,10 @@ onMounted(async () => {
   if (vp) {
     vp.addEventListener('touchstart', onTouchStart, { passive: true })
     vp.addEventListener('touchmove', onTouchMove, { passive: false })
-    vp.addEventListener('touchend', onTouchEnd)
-    vp.addEventListener('touchcancel', onTouchEnd)
+    vp.addEventListener('touchend', dragEnd)
+    vp.addEventListener('touchcancel', dragEnd)
     vp.addEventListener('mousedown', onMouseDown)
+    vp.addEventListener('wheel', onWheel, { passive: false })
   }
 
   if (typeof ResizeObserver !== 'undefined' && vp) {
@@ -323,9 +372,10 @@ onBeforeUnmount(() => {
   if (vp) {
     vp.removeEventListener('touchstart', onTouchStart)
     vp.removeEventListener('touchmove', onTouchMove)
-    vp.removeEventListener('touchend', onTouchEnd)
-    vp.removeEventListener('touchcancel', onTouchEnd)
+    vp.removeEventListener('touchend', dragEnd)
+    vp.removeEventListener('touchcancel', dragEnd)
     vp.removeEventListener('mousedown', onMouseDown)
+    vp.removeEventListener('wheel', onWheel)
   }
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)

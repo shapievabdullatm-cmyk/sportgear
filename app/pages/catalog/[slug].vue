@@ -23,20 +23,6 @@
       <!-- Main content with filter -->
       <div class="catalog-content">
 
-        <!-- Mobile filter button -->
-        <button
-            v-if="filtersData && (filtersData.filters.length > 0 || filtersData.price_range.max > 0)"
-            class="mobile-filter-btn"
-            @click="isFilterOpen = true"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="4" y1="6" x2="20" y2="6"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-            <line x1="11" y1="18" x2="13" y2="18"/>
-          </svg>
-          Фильтры
-        </button>
-
         <!-- Mobile overlay backdrop -->
         <Transition name="fade">
           <div v-if="isFilterOpen" class="filter-backdrop" @click="isFilterOpen = false" />
@@ -85,6 +71,59 @@
 
         <!-- Products grid -->
         <div class="products-section">
+          <!-- Toolbar: фильтр + сортировка -->
+          <div class="catalog-toolbar">
+            <button
+                v-if="filtersData && (filtersData.filters.length > 0 || filtersData.price_range.max > 0)"
+                class="toolbar-btn toolbar-btn--filter"
+                @click="isFilterOpen = true"
+                type="button"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+                <line x1="11" y1="18" x2="13" y2="18"/>
+              </svg>
+              <span>Фильтры</span>
+              <span v-if="hasActiveFilters" class="toolbar-btn__dot" aria-hidden="true" />
+            </button>
+
+            <div class="sort-wrapper" ref="sortWrapperRef">
+              <button
+                  type="button"
+                  class="toolbar-btn toolbar-btn--sort"
+                  :class="{ 'is-open': isSortOpen, 'is-active': currentSort !== '' }"
+                  @click="toggleSort"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/>
+                </svg>
+                <span class="sort-label">{{ currentSortLabel }}</span>
+                <svg class="sort-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              <Transition name="dropdown">
+                <div v-if="isSortOpen" class="sort-dropdown">
+                  <button
+                      v-for="opt in sortOptions"
+                      :key="opt.value || 'default'"
+                      type="button"
+                      class="sort-option"
+                      :class="{ active: currentSort === opt.value }"
+                      @click="selectSort(opt.value)"
+                  >
+                    <span>{{ opt.label }}</span>
+                    <svg v-if="currentSort === opt.value" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </button>
+                </div>
+              </Transition>
+            </div>
+          </div>
+
           <!-- Loading overlay for products -->
           <div v-if="productsPending" class="products-loading">
             <div class="spinner"></div>
@@ -145,7 +184,7 @@ function parseFiltersFromQuery() {
 
   Object.keys(query).forEach(key => {
     // Пропускаем служебные параметры
-    if (['price_min', 'price_max', 'page', 'per_page'].includes(key)) {
+    if (['price_min', 'price_max', 'page', 'per_page', 'sort'].includes(key)) {
       return
     }
 
@@ -180,6 +219,11 @@ watch(filterValues, (newFilters) => {
   if (isUpdatingFromQuery) return
 
   const query: Record<string, string | string[]> = {}
+
+  // Preserve sort param
+  if (route.query.sort) {
+    query.sort = route.query.sort as string
+  }
 
   // Add price filters
   if (newFilters.price_min !== undefined) {
@@ -285,6 +329,53 @@ const hasActiveFilters = computed(() =>
     filterValues.value.price_max !== undefined ||
     (filterValues.value.filters && Object.keys(filterValues.value.filters).length > 0)
 )
+
+// ── Сортировка ───────────────────────────────────────────
+const sortOptions = [
+  { value: '',           label: 'По умолчанию' },
+  { value: 'price_asc',  label: 'Сначала дешёвые' },
+  { value: 'price_desc', label: 'Сначала дорогие' },
+] as const
+
+const currentSort = computed(() => (route.query.sort as string) || '')
+const currentSortLabel = computed(() => {
+  const opt = sortOptions.find(o => o.value === currentSort.value)
+  return opt?.label || 'По умолчанию'
+})
+
+const isSortOpen = ref(false)
+const sortWrapperRef = ref<HTMLElement | null>(null)
+
+function toggleSort() {
+  isSortOpen.value = !isSortOpen.value
+}
+
+function selectSort(value: string) {
+  const query: Record<string, any> = { ...route.query }
+  if (value) {
+    query.sort = value
+  } else {
+    delete query.sort
+  }
+  delete query.page
+  router.replace({ query })
+  isSortOpen.value = false
+}
+
+function onDocClick(e: MouseEvent) {
+  if (!isSortOpen.value) return
+  if (sortWrapperRef.value && !sortWrapperRef.value.contains(e.target as Node)) {
+    isSortOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+})
 
 function resetFilters() {
   filterValues.value = {}
@@ -407,6 +498,136 @@ function goToPage(page: number) {
   opacity: 0;
 }
 
+/* ── Toolbar (filter + sort) ─────────────────────────── */
+.catalog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  background: #fff;
+  color: #1A1A1A;
+  border: 1px solid #E5E5E7;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+  position: relative;
+}
+
+.toolbar-btn:hover {
+  background: #F7F7F8;
+  border-color: #D8D8DC;
+}
+
+.toolbar-btn:active {
+  background: #EDEDEF;
+}
+
+.toolbar-btn.is-active,
+.toolbar-btn.is-open {
+  border-color: #1A1A1A;
+}
+
+.toolbar-btn__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #C1121C;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.sort-wrapper {
+  position: relative;
+}
+
+.sort-label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sort-chevron {
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+  color: #6B6B70;
+}
+
+.toolbar-btn.is-open .sort-chevron {
+  transform: rotate(180deg);
+}
+
+.sort-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: #fff;
+  border: 1px solid #E5E5E7;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1A1A1A;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s;
+  width: 100%;
+}
+
+.sort-option:hover {
+  background: #F5F4F0;
+}
+
+.sort-option.active {
+  color: #C1121C;
+}
+
+.sort-option.active:hover {
+  background: #FAEDED;
+}
+
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
 @media (max-width: 1024px) {
   .catalog-content {
     grid-template-columns: 240px 1fr;
@@ -419,25 +640,59 @@ function goToPage(page: number) {
     grid-template-columns: 1fr;
   }
 
-  /* Mobile filter button */
-  .mobile-filter-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    margin-bottom: 16px;
-    background: #1A1A1A;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
+  .catalog-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
   }
 
-  .mobile-filter-btn:active {
-    background: #333;
+  .toolbar-btn {
+    background: #EDEDEF;
+    border-color: transparent;
+    height: 44px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  .toolbar-btn:hover,
+  .toolbar-btn:active {
+    background: #E3E3E5;
+    border-color: transparent;
+  }
+
+  .toolbar-btn.is-active,
+  .toolbar-btn.is-open {
+    border-color: transparent;
+    background: #E3E3E5;
+  }
+
+  .toolbar-btn--filter {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sort-wrapper {
+    min-width: 0;
+  }
+
+  .toolbar-btn--sort {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sort-label {
+    text-align: center;
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sort-dropdown {
+    left: 0;
+    right: 0;
+    min-width: 0;
   }
 
   /* Backdrop overlay */
@@ -568,7 +823,7 @@ function goToPage(page: number) {
 }
 
 @media (min-width: 769px) {
-  .mobile-filter-btn {
+  .toolbar-btn--filter {
     display: none;
   }
 

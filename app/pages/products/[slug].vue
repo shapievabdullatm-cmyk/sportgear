@@ -251,6 +251,7 @@
                 v-for="boughtProduct in boughtTogetherProducts"
                 :key="boughtProduct.id"
                 class="bought-together-slide"
+                @click.capture="armScrollReset"
             >
               <CatalogProductCard :product="boughtProduct" />
             </div>
@@ -277,6 +278,7 @@
                 v-for="similarProduct in similarProducts"
                 :key="similarProduct.id"
                 class="similar-slide"
+                @click.capture="armScrollReset"
             >
               <CatalogProductCard :product="similarProduct" />
             </div>
@@ -400,6 +402,7 @@ import type { Product } from '~/types/product'
 import { useCartStore } from '~/stores/cart'
 import { useWishlistStore } from '~/stores/wishlist'
 import { useToastStore } from '~/stores/toast'
+import { armScrollReset } from '~/router.options'
 
 const infoDrawerOpen = ref(false)
 

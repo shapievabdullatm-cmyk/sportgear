@@ -86,12 +86,48 @@ function onWheel(e) {
   e.deltaX > 0 ? carouselRef.value.next() : carouselRef.value.prev()
 }
 
+// ── Axis-lock: чтобы вертикальный свайп не дёргал карусель ──
+let lockedAxis = null
+let touchStartX = 0
+let touchStartY = 0
+const AXIS_THRESHOLD = 6
+
+function onContainerTouchStart(e) {
+  lockedAxis = null
+  if (!e.touches || e.touches.length !== 1) return
+  touchStartX = e.touches[0].clientX
+  touchStartY = e.touches[0].clientY
+}
+
+function onContainerTouchMove(e) {
+  if (!e.touches || e.touches.length !== 1) return
+  const t = e.touches[0]
+
+  if (lockedAxis === null) {
+    const dx = Math.abs(t.clientX - touchStartX)
+    const dy = Math.abs(t.clientY - touchStartY)
+    if (dx < AXIS_THRESHOLD && dy < AXIS_THRESHOLD) {
+      e.stopPropagation()
+      return
+    }
+    lockedAxis = dy > dx ? 'y' : 'x'
+  }
+
+  if (lockedAxis === 'y') {
+    e.stopPropagation()
+  }
+}
+
 onMounted(() => {
   containerRef.value?.addEventListener('wheel', onWheel, { passive: false })
+  containerRef.value?.addEventListener('touchstart', onContainerTouchStart, { capture: true, passive: true })
+  containerRef.value?.addEventListener('touchmove', onContainerTouchMove, { capture: true, passive: true })
 })
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener('wheel', onWheel)
+  containerRef.value?.removeEventListener('touchstart', onContainerTouchStart, { capture: true })
+  containerRef.value?.removeEventListener('touchmove', onContainerTouchMove, { capture: true })
 })
 </script>
 
