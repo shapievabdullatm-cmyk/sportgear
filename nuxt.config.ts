@@ -50,7 +50,7 @@ export default defineNuxtConfig({
       description: 'Интернет-магазин спортивных товаров Rage',
       lang: 'ru',
       theme_color: '#C1121C',
-      background_color: '#EDEDEF',
+      background_color: '#000000',
       display: 'standalone',
       orientation: 'portrait',
       start_url: '/',
