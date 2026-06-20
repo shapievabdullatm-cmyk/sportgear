@@ -29,6 +29,9 @@
                 @touchmove.prevent="onTouchMove"
                 @touchend="onTouchEnd"
             />
+            <div v-if="isLoading" class="canvas-loader">
+              <span class="spinner" />
+            </div>
           </div>
 
           <!-- Controls -->
@@ -89,11 +92,14 @@
 
           <!-- Footer -->
           <div class="footer">
-            <button class="btn-cancel" @click="$emit('cancel')">Отмена</button>
-            <button class="btn-apply" @click="applyResult">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              Применить
-            </button>
+            <span class="hint">Перетащите чтобы переместить · колесом / pinch — масштаб · Esc · Enter</span>
+            <div class="footer-actions">
+              <button class="btn-cancel" @click="$emit('cancel')">Отмена</button>
+              <button class="btn-apply" :disabled="isLoading" @click="applyResult">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Применить
+              </button>
+            </div>
           </div>
 
         </div>
@@ -118,7 +124,9 @@ let   ctx: CanvasRenderingContext2D | null = null
 
 // ─── Image state ──────────────────────────────────────────────────────────────
 const currentSrc = ref<string | null>(null)
-let   img        = new Image()
+const isLoading  = ref(false)
+// Ленивая инициализация — `new Image()` доступен только в браузере (избегаем SSR-краша).
+let   img: HTMLImageElement | null = null
 
 // Transform state (image position & scale relative to canvas)
 let   scale     = ref(1)
@@ -136,13 +144,17 @@ let   frameX = 0, frameY = 0, frameW = 0, frameH = 0
 // Canvas display size
 let   cW = 0, cH = 0
 
-// Minimum scale: image must always cover the frame
-let   minScale = 1
+// Scale bounds: minScale = contain (картинка целиком в рамке),
+// coverScale = картинка полностью закрывает рамку,
+// maxScale = верхняя граница зума (coverScale × ZOOM_MAX).
+let   minScale   = 1
+let   coverScale = 1
+let   maxScale   = 4
 
 // ─── Zoom slider pct ─────────────────────────────────────────────────────────
-const ZOOM_MAX  = 4   // max multiplier above minScale
+const ZOOM_MAX  = 4   // max multiplier above coverScale
 const zoomPct = computed(() => {
-  const range = minScale * ZOOM_MAX - minScale
+  const range = maxScale - minScale
   if (range <= 0) return 0
   return Math.round(((scale.value - minScale) / range) * 100)
 })
@@ -156,10 +168,30 @@ watch(() => props.src, (val) => {
 }, { immediate: true })
 
 watch(() => props.modelValue, (val) => {
-  if (val && currentSrc.value) {
-    nextTick(() => initCanvas())
+  if (val) {
+    document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', onWindowResize)
+    document.body.style.overflow = 'hidden'
+    if (currentSrc.value) nextTick(() => initCanvas())
+  } else {
+    document.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('resize', onWindowResize)
+    document.body.style.overflow = ''
   }
 })
+
+function onKeyDown(e: KeyboardEvent) {
+  if (!props.modelValue) return
+  if (e.key === 'Escape') { e.preventDefault(); emit('cancel') }
+  else if (e.key === 'Enter') { e.preventDefault(); if (!isLoading.value) applyResult() }
+}
+
+let resizeRaf = 0
+function onWindowResize() {
+  if (!props.modelValue || !img || !img.naturalWidth) return
+  cancelAnimationFrame(resizeRaf)
+  resizeRaf = requestAnimationFrame(() => initCanvas())
+}
 
 // ─── Canvas init ──────────────────────────────────────────────────────────────
 function initCanvas() {
@@ -180,6 +212,8 @@ function initCanvas() {
 
   ctx = el.getContext('2d')!
   ctx.scale(dpr, dpr)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
 
   computeFrame()
   fitImage()
@@ -203,24 +237,34 @@ function computeFrame() {
   frameY = Math.floor((cH - frameH) / 2)
 }
 
-// Fit image so it covers the frame exactly
+// Fit image so it covers the frame exactly (initial view).
+// Bounds: minScale = contain (можно сжать пока картинка не влезет в рамку целиком),
+// maxScale = coverScale × ZOOM_MAX.
 function fitImage() {
-  if (!img.naturalWidth) return
+  if (!img || !img.naturalWidth) return
   rotation = 0; flipH = false; flipV = false
 
-  const [iw, ih] = naturalSize()
-  const scaleX = frameW / iw
-  const scaleY = frameH / ih
-  minScale     = Math.max(scaleX, scaleY)
-  scale.value  = minScale
+  recalcScaleBounds()
+  scale.value = coverScale
 
+  const [iw, ih] = naturalSize()
   // Center image on frame
   offsetX = frameX - (iw * scale.value - frameW) / 2
   offsetY = frameY - (ih * scale.value - frameH) / 2
 }
 
+function recalcScaleBounds() {
+  const [iw, ih] = naturalSize()
+  const scaleX = frameW / iw
+  const scaleY = frameH / ih
+  coverScale = Math.max(scaleX, scaleY)
+  minScale   = Math.min(scaleX, scaleY)
+  maxScale   = coverScale * ZOOM_MAX
+}
+
 // Natural size accounting for rotation
 function naturalSize(): [number, number] {
+  if (!img) return [0, 0]
   const rot90 = rotation % 180 !== 0
   return rot90
       ? [img.naturalHeight, img.naturalWidth]
@@ -228,17 +272,35 @@ function naturalSize(): [number, number] {
 }
 
 function loadImage(src: string) {
+  if (typeof Image === 'undefined') return  // SSR-safety
+  // Сбрасываем предыдущие слушатели, чтобы не сработали после перезагрузки
+  if (img) {
+    img.onload = null
+    img.onerror = null
+  }
+  isLoading.value = true
   img = new Image()
   img.crossOrigin = 'anonymous'
   img.onload = () => {
+    isLoading.value = false
     if (canvasEl.value) initCanvas()
   }
+  img.onerror = () => { isLoading.value = false }
   img.src = src
 }
 
 // ─── Draw ─────────────────────────────────────────────────────────────────────
+let drawRaf = 0
+function scheduleDraw() {
+  if (drawRaf) return
+  drawRaf = requestAnimationFrame(() => {
+    drawRaf = 0
+    draw()
+  })
+}
+
 function draw() {
-  if (!ctx) return
+  if (!ctx || !img) return
   ctx.clearRect(0, 0, cW, cH)
 
   const [iw, ih] = naturalSize()
@@ -255,8 +317,6 @@ function draw() {
   if (flipH) ctx.scale(-1, 1)
   if (flipV) ctx.scale(1, -1)
 
-  const srcW = img.naturalWidth
-  const srcH = img.naturalHeight
   const drawW = (rotation % 180 !== 0) ? dh : dw
   const drawH = (rotation % 180 !== 0) ? dw : dh
 
@@ -312,23 +372,27 @@ function draw() {
   ctx.restore()
 }
 
-// ─── Clamp offset so image always covers frame ────────────────────────────────
+// ─── Clamp offset ─────────────────────────────────────────────────────────────
+// Если картинка больше рамки по оси (cover-режим) — её края не должны заходить внутрь рамки;
+// если меньше (contain-режим) — она должна полностью оставаться внутри рамки.
 function clampOffset() {
   const [iw, ih] = naturalSize()
   const dw = iw * scale.value
   const dh = ih * scale.value
 
-  // Left edge of image must be <= frameX
-  const maxX = frameX
-  // Right edge of image must be >= frameX + frameW
-  const minX = frameX + frameW - dw
-  // Top edge <= frameY
-  const maxY = frameY
-  // Bottom edge >= frameY + frameH
-  const minY = frameY + frameH - dh
+  if (dw >= frameW) {
+    // Cover по X: image extends past both frame edges
+    offsetX = Math.min(frameX, Math.max(frameX + frameW - dw, offsetX))
+  } else {
+    // Contain по X: image stays fully inside frame
+    offsetX = Math.max(frameX, Math.min(frameX + frameW - dw, offsetX))
+  }
 
-  offsetX = Math.min(maxX, Math.max(minX, offsetX))
-  offsetY = Math.min(maxY, Math.max(minY, offsetY))
+  if (dh >= frameH) {
+    offsetY = Math.min(frameY, Math.max(frameY + frameH - dh, offsetY))
+  } else {
+    offsetY = Math.max(frameY, Math.min(frameY + frameH - dh, offsetY))
+  }
 }
 
 // ─── Mouse drag ───────────────────────────────────────────────────────────────
@@ -347,7 +411,7 @@ function onMouseMove(e: MouseEvent) {
   lastX = e.clientX
   lastY = e.clientY
   clampOffset()
-  draw()
+  scheduleDraw()
 }
 function onMouseUp() { dragging = false }
 
@@ -379,7 +443,7 @@ function onTouchMove(e: TouchEvent) {
     offsetX += dx; offsetY += dy
     lastTouchX = e.touches[0].clientX
     lastTouchY = e.touches[0].clientY
-    clampOffset(); draw()
+    clampOffset(); scheduleDraw()
   } else if (e.touches.length === 2) {
     const dist    = pinchDist(e)
     const ratio   = dist / lastPinchDist
@@ -390,7 +454,14 @@ function onTouchMove(e: TouchEvent) {
     lastPinchDist = dist
   }
 }
-function onTouchEnd() {}
+function onTouchEnd(e: TouchEvent) {
+  // При отпускании одного из двух пальцев — перезахватываем для оставшегося
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX
+    lastTouchY = e.touches[0].clientY
+    lastPinchDist = 0
+  }
+}
 function pinchDist(e: TouchEvent) {
   const dx = e.touches[0].clientX - e.touches[1].clientX
   const dy = e.touches[0].clientY - e.touches[1].clientY
@@ -399,7 +470,6 @@ function pinchDist(e: TouchEvent) {
 
 // ─── Zoom at point ────────────────────────────────────────────────────────────
 function zoomAt(px: number, py: number, newScale: number) {
-  const maxScale  = minScale * ZOOM_MAX
   const clamped   = Math.max(minScale, Math.min(maxScale, newScale))
   const ratio     = clamped / scale.value
   // Zoom toward point
@@ -407,7 +477,7 @@ function zoomAt(px: number, py: number, newScale: number) {
   offsetY = py - (py - offsetY) * ratio
   scale.value = clamped
   clampOffset()
-  draw()
+  scheduleDraw()
 }
 
 // ─── Zoom controls ────────────────────────────────────────────────────────────
@@ -420,7 +490,6 @@ function changeZoom(delta: number) {
 
 function onSliderInput(e: Event) {
   const pct      = Number((e.target as HTMLInputElement).value) / 100
-  const maxScale = minScale * ZOOM_MAX
   const newScale = minScale + pct * (maxScale - minScale)
   const cx = frameX + frameW / 2
   const cy = frameY + frameH / 2
@@ -430,13 +499,12 @@ function onSliderInput(e: Event) {
 // ─── Rotate ───────────────────────────────────────────────────────────────────
 function rotateImg(deg: number) {
   rotation = ((rotation + deg) % 360 + 360) % 360
-  // After rotation natural size swaps, recalc minScale
-  const [iw, ih] = naturalSize()
-  const scaleX   = frameW / iw
-  const scaleY   = frameH / ih
-  minScale       = Math.max(scaleX, scaleY)
+  // After rotation natural size swaps, recalc bounds
+  recalcScaleBounds()
   if (scale.value < minScale) scale.value = minScale
+  if (scale.value > maxScale) scale.value = maxScale
   // Re-center
+  const [iw, ih] = naturalSize()
   offsetX = frameX - (iw * scale.value - frameW) / 2
   offsetY = frameY - (ih * scale.value - frameH) / 2
   clampOffset()
@@ -459,10 +527,13 @@ function resetView() {
 
 // ─── Apply / export ───────────────────────────────────────────────────────────
 function applyResult() {
+  if (!img) return
   const out  = document.createElement('canvas')
   out.width  = 600
   out.height = 900
   const octx = out.getContext('2d')!
+  octx.imageSmoothingEnabled = true
+  octx.imageSmoothingQuality = 'high'
 
   // Crop: what part of the drawn image falls inside frameX/Y/W/H
   // offsetX/Y = top-left of scaled image in canvas coords
@@ -495,6 +566,19 @@ function applyResult() {
     emit('confirm', blob, out.toDataURL('image/png'))
   }, 'image/png')
 }
+
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', onWindowResize)
+  document.body.style.overflow = ''
+  if (drawRaf) cancelAnimationFrame(drawRaf)
+  if (resizeRaf) cancelAnimationFrame(resizeRaf)
+  if (img) {
+    img.onload = null
+    img.onerror = null
+  }
+})
 </script>
 
 <style scoped>
@@ -544,6 +628,19 @@ function applyResult() {
 }
 .crop-canvas:active { cursor: grabbing; }
 
+.canvas-loader {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(240, 238, 233, 0.6);
+  pointer-events: none;
+}
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2.5px solid #E8E6E0; border-top-color: #1A1A1A;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Controls */
 .controls {
   display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
@@ -576,8 +673,17 @@ function applyResult() {
 
 /* Footer */
 .footer {
-  display: flex; align-items: center; justify-content: flex-end;
-  gap: 8px; padding: 12px 20px; border-top: 1px solid #F0EEE9; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 20px; border-top: 1px solid #F0EEE9; flex-shrink: 0;
+}
+.footer-actions { display: flex; align-items: center; gap: 8px; }
+.hint {
+  font-size: 11.5px; color: #ABABAB;
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .hint { display: none; }
 }
 .btn-cancel {
   padding: 7px 16px; border: 1px solid #E8E6E0; border-radius: 8px;
@@ -591,7 +697,8 @@ function applyResult() {
   border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
   cursor: pointer; transition: background 0.13s;
 }
-.btn-apply:hover { background: #333; }
+.btn-apply:hover:not(:disabled) { background: #333; }
+.btn-apply:disabled { background: #C0BEB8; cursor: not-allowed; }
 
 /* Transition */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }

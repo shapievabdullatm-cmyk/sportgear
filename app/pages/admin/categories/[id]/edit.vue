@@ -8,6 +8,14 @@
         @close="toast.close"
     />
 
+    <!-- Image Editor Modal -->
+    <AdminImageEditorModal
+        v-model="showEditor"
+        :src="editorSrc"
+        @confirm="onEditorConfirm"
+        @cancel="onEditorCancel"
+    />
+
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h1 class="text-[15px] font-semibold text-[#1A1A1A]">Редактирование категории</h1>
@@ -57,7 +65,23 @@
 
         <!-- Preview (новый файл или существующий) -->
         <div v-if="imagePreview" class="relative w-[120px] h-[180px] rounded-lg overflow-hidden border border-[#E8E6E0] group">
-          <img :src="imagePreview" alt="preview" class="w-full h-full object-cover" />
+          <!-- Checkerboard for transparent images -->
+          <div class="absolute inset-0"
+               style="background-image: linear-gradient(45deg,#e0e0e0 25%,transparent 25%),linear-gradient(-45deg,#e0e0e0 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e0e0e0 75%),linear-gradient(-45deg,transparent 75%,#e0e0e0 75%);background-size:12px 12px;background-position:0 0,0 6px,6px -6px,-6px 0">
+          </div>
+          <img :src="imagePreview" alt="preview" class="relative w-full h-full object-cover" />
+          <!-- Edit button -->
+          <button
+              type="button"
+              @click="openEditorForExisting"
+              class="absolute top-1.5 right-8 z-10 w-6 h-6 rounded flex items-center justify-center bg-white/90 text-[#1A1A1A] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+              title="Редактировать"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
           <button
               type="button"
               @click="removeImage"
@@ -149,6 +173,11 @@ const fileInput    = ref<HTMLInputElement | null>(null)
 // Показываем либо превью нового файла, либо существующее фото категории
 const imagePreview = ref<string | null>(store.currentCategory?.image ?? null)
 
+// ─── Editor state ─────────────────────────────────────────────────────────────
+const showEditor  = ref(false)
+const editorSrc   = ref<string | null>(null)
+const pendingFile = ref<File | null>(null)
+
 const form = reactive({
   title:            String(store.currentCategory?.title            ?? ''),
   parent_id:        (store.currentCategory?.parent_id              ?? null) as number | null,
@@ -180,30 +209,59 @@ const selectedParamItems = ref<ParamItem[]>(
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_MB  = 5
 
-function validateAndSetFile(file: File) {
+function validateFile(file: File): boolean {
   imageError.value = null
   if (!ALLOWED.includes(file.type)) {
     imageError.value = 'Допустимые форматы: JPG, PNG, WebP'
-    return
+    return false
   }
   if (file.size > MAX_MB * 1024 * 1024) {
     imageError.value = `Файл не должен превышать ${MAX_MB} МБ`
-    return
+    return false
   }
+  return true
+}
+
+function openEditorWithFile(file: File) {
+  if (!validateFile(file)) return
+  pendingFile.value = file
+  editorSrc.value   = URL.createObjectURL(file)
+  showEditor.value  = true
+}
+
+function openEditorForExisting() {
+  if (!imagePreview.value) return
+  editorSrc.value  = imagePreview.value
+  showEditor.value = true
+}
+
+function onEditorConfirm(blob: Blob, preview: string) {
+  const ext  = blob.type === 'image/png' ? 'png' : 'jpg'
+  const name = pendingFile.value?.name ?? `category.${ext}`
+  imageFile.value    = new File([blob], name, { type: blob.type })
+  imagePreview.value = preview
   removeFlag.value   = false
-  imageFile.value    = file
-  imagePreview.value = URL.createObjectURL(file)
+  showEditor.value   = false
+  pendingFile.value  = null
+  editorSrc.value    = null
+}
+
+function onEditorCancel() {
+  showEditor.value  = false
+  pendingFile.value = null
+  editorSrc.value   = null
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) validateAndSetFile(file)
+  if (file) openEditorWithFile(file)
 }
 
 function onDrop(e: DragEvent) {
   isDragging.value = false
   const file = e.dataTransfer?.files?.[0]
-  if (file) validateAndSetFile(file)
+  if (file) openEditorWithFile(file)
 }
 
 function removeImage() {

@@ -984,10 +984,6 @@ function getColorName(value: string): string { return optionColorName(value) }
   transform: translateX(20px);
 }
 
-.switch-checkbox:focus + .switch-slider {
-  box-shadow: 0 0 0 3px rgba(193, 18, 28, 0.18);
-}
-
 .switch-description {
   font-size: 13px;
   color: #111;

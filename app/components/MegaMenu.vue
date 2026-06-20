@@ -60,6 +60,9 @@ let pickL2Timer: ReturnType<typeof setTimeout> | null = null
 const l2 = computed(() => hoveredL1.value ? childrenOf(hoveredL1.value.id) : [])
 const l3 = computed(() => hoveredL2.value ? childrenOf(hoveredL2.value.id) : [])
 
+// Разные ширины для скелетон-баров — выглядит естественнее, чем одинаковые
+const skeletonWidths = ['78%', '64%', '85%', '52%', '72%', '60%', '80%', '58%']
+
 // Превью: L3 (если есть фото) → L2 → L1 → первая корневая с фото → первая корневая
 const previewCat = computed(
     () => (hoveredL3.value?.image ? hoveredL3.value : null)
@@ -194,21 +197,32 @@ defineExpose({ openMobile })
           <div class="mega-cols">
             <!-- L1 -->
             <div class="mega-col">
-              <NuxtLink
-                  v-for="cat in roots"
-                  :key="cat.id"
-                  :to="catUrl(cat)"
-                  class="mega-link"
-                  :class="{ 'is-active': hoveredL1?.id === cat.id }"
-                  @mouseenter="pickL1(cat)"
-                  @mouseleave="cancelPickL1"
-                  @click="closeMega"
-              >
-                <span>{{ cat.title }}</span>
-                <svg v-if="hasKids(cat)" class="mega-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </NuxtLink>
+              <template v-if="loaded">
+                <NuxtLink
+                    v-for="cat in roots"
+                    :key="cat.id"
+                    :to="catUrl(cat)"
+                    class="mega-link"
+                    :class="{ 'is-active': hoveredL1?.id === cat.id }"
+                    @mouseenter="pickL1(cat)"
+                    @mouseleave="cancelPickL1"
+                    @click="closeMega"
+                >
+                  <span>{{ cat.title }}</span>
+                  <svg v-if="hasKids(cat)" class="mega-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </NuxtLink>
+              </template>
+              <template v-else>
+                <div
+                    v-for="n in 8"
+                    :key="`sk-${n}`"
+                    class="mega-link mega-link-skeleton"
+                >
+                  <span class="skeleton-bar" :style="{ width: skeletonWidths[n - 1] }" />
+                </div>
+              </template>
             </div>
 
             <!-- L2 -->
@@ -257,7 +271,8 @@ defineExpose({ openMobile })
 
         <!-- ── Правая часть: фото во всю высоту панели ────────────────── -->
         <div class="mega-image-side">
-          <Transition name="img-fade">
+          <div v-if="!loaded" class="mega-image-skeleton" />
+          <Transition v-else name="img-fade">
             <img
                 v-if="previewCat?.image"
                 :key="previewCat.id"
@@ -315,19 +330,30 @@ defineExpose({ openMobile })
         </NuxtLink>
 
         <div class="mob-list">
-          <button
-              v-for="cat in mobileItems"
-              :key="cat.id"
-              class="mob-item"
-              @click="mobileEnter(cat)"
-          >
-            <span>{{ cat.title }}</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <template v-if="loaded">
+            <button
+                v-for="cat in mobileItems"
+                :key="cat.id"
+                class="mob-item"
+                @click="mobileEnter(cat)"
+            >
+              <span>{{ cat.title }}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </template>
+          <template v-else>
+            <div
+                v-for="n in 8"
+                :key="`mob-sk-${n}`"
+                class="mob-item mob-item-skeleton"
+            >
+              <span class="skeleton-bar" :style="{ width: skeletonWidths[n - 1] }" />
+            </div>
+          </template>
 
-          <div v-if="!mobileParent && quickLinks.length" class="mob-quick-links">
+          <div v-if="loaded && !mobileParent && quickLinks.length" class="mob-quick-links">
             <div class="mob-quick-links-title">Быстрые ссылки</div>
             <div class="mob-quick-links-list">
               <a v-for="link in quickLinks" :key="link.id" :href="link.url" class="mob-quick-link" @click="closeMobile">
@@ -483,6 +509,36 @@ defineExpose({ openMobile })
   background: transparent;
 }
 
+/* ─── Скелетоны загрузки ─────────────────────────────────────────────────── */
+.mega-link-skeleton {
+  pointer-events: none;
+  background: transparent !important;
+}
+.mega-link-skeleton:hover { background: transparent !important; }
+
+.skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #efefef 0%, #f7f7f7 50%, #efefef 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.mega-image-skeleton {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #EDEDEF 0%, #f5f5f7 50%, #EDEDEF 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ─── Mobile backdrop ────────────────────────────────────────────────────── */
 .mob-backdrop {
   position: fixed;
@@ -588,6 +644,13 @@ defineExpose({ openMobile })
 .mob-item:hover { background: #fafafa; }
 .mob-item:last-child { border-bottom: none; }
 .mob-item svg { color: #bbb; flex-shrink: 0; }
+
+.mob-item-skeleton {
+  pointer-events: none;
+  cursor: default;
+}
+.mob-item-skeleton:hover { background: none; }
+.mob-item-skeleton .skeleton-bar { height: 14px; }
 
 /* ─── Быстрые ссылки ─────────────────────────────────────────────────────── */
 .mob-quick-links {

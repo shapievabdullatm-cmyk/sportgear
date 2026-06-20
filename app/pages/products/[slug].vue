@@ -1276,7 +1276,7 @@ useHead({
 .variant-no-img {
   width: 100%;
   height: 100%;
-  background: #f4f4f4;
+  background: #EDEDEF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1546,7 +1546,7 @@ useHead({
 .variant-no-img {
   width: 100%;
   height: 100%;
-  background: #f4f4f4;
+  background: #EDEDEF;
   display: flex;
   align-items: center;
   justify-content: center;

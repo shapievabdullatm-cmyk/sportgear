@@ -22,7 +22,7 @@
                 class="size-button"
                 :class="{
                   active: selectedSize === size.product_id,
-                  'out-of-stock': size.total_stock === 0,
+                  disabled: size.total_stock === 0,
                   'in-cart': getSizeQuantityInCart(size.product_id) > 0
                 }"
                 :disabled="size.total_stock === 0"
@@ -32,23 +32,6 @@
                   {{ getSizeQuantityInCart(size.product_id) }}
                 </span>
               </button>
-            </div>
-
-            <div v-if="selectedSizeData && mode !== 'wishlist'" class="size-info">
-              <div class="size-info-row">
-                <span class="label">Цена:</span>
-                <span class="value">{{ formatPrice(selectedSizeData.price) }} ₽</span>
-              </div>
-              <div v-if="selectedSizeData.old_price" class="size-info-row">
-                <span class="label">Старая цена:</span>
-                <span class="value old-price">{{ formatPrice(selectedSizeData.old_price) }} ₽</span>
-              </div>
-              <div class="size-info-row">
-                <span class="label">В наличии:</span>
-                <span class="value" :class="{ 'in-stock': selectedSizeData.total_stock > 0, 'out-of-stock': selectedSizeData.total_stock === 0 }">
-                  {{ selectedSizeData.total_stock > 0 ? `${selectedSizeData.total_stock} шт.` : 'Нет в наличии' }}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -91,11 +74,6 @@ const emit = defineEmits<Emits>()
 const cartStore = useCartStore()
 const selectedSize = ref<number | null>(props.initialSize || null)
 
-const selectedSizeData = computed(() => {
-  if (!selectedSize.value) return null
-  return props.sizes.find(s => s.product_id === selectedSize.value)
-})
-
 function selectSize(productId: number) {
   selectedSize.value = productId
   if (props.mode === 'wishlist') {
@@ -117,15 +95,6 @@ function confirm() {
     emit('confirm', selectedSize.value)
     close()
   }
-}
-
-function formatPrice(price: number | null | undefined): string {
-  if (!price) return '0'
-  const num = typeof price === 'string' ? parseFloat(price) : price
-  return num.toLocaleString('ru-RU', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  })
 }
 
 // Сбросить выбор при открытии модалки
@@ -217,22 +186,22 @@ onMounted(() => {
 .sizes-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: 8px;
 }
 
 .size-button {
-  min-width: 60px;
-  padding: 12px 20px;
-  border: 2px solid #e5e5e5;
+  position: relative;
+  min-width: 56px;
+  padding: 10px 16px;
+  border: 1.5px solid #e5e5e5;
   border-radius: 8px;
   background: #fff;
   color: #1a1a1a;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  white-space: nowrap;
 }
 
 .size-button:hover:not(:disabled) {
@@ -245,32 +214,17 @@ onMounted(() => {
   color: #fff;
 }
 
-.size-button.in-cart:not(.active) {
-  border-color: #15803d;
-}
-
-.size-button.out-of-stock {
+.size-button.disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  position: relative;
-}
-
-.size-button.out-of-stock::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: #dc2626;
-  transform: translateY(-50%) rotate(-15deg);
+  text-decoration: line-through;
 }
 
 .size-badge {
   position: absolute;
   top: -6px;
   right: -6px;
-  background: #15803d;
+  background: #C1121C;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -282,49 +236,6 @@ onMounted(() => {
   justify-content: center;
   padding: 0 4px;
   line-height: 1;
-}
-
-.size-button.active .size-badge {
-  background: #fff;
-  color: #1a1a1a;
-}
-
-.size-info {
-  background: #f9f9f9;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.size-info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-}
-
-.size-info-row .label {
-  color: #666;
-}
-
-.size-info-row .value {
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.size-info-row .value.old-price {
-  text-decoration: line-through;
-  color: #999;
-}
-
-.size-info-row .value.in-stock {
-  color: #15803d;
-}
-
-.size-info-row .value.out-of-stock {
-  color: #dc2626;
 }
 
 .modal-footer {
@@ -339,26 +250,14 @@ onMounted(() => {
   color: #fff;
   border: none;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
 }
 
 .btn-confirm:hover:not(:disabled) {
   background: #333;
-}
-
-.btn-confirm.btn-wishlist {
-  background: #C1121C;
-}
-
-.btn-confirm.btn-wishlist:hover:not(:disabled) {
-  background: #a00f18;
 }
 
 .btn-confirm:disabled {

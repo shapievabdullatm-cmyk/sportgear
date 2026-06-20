@@ -322,7 +322,7 @@ function formatPrice(price: number | string): string {
   width: 100%;
   padding-bottom: 150%; /* 2:3 (height = 1.5 × width) — гарантированная высота */
   flex-shrink: 0;
-  background-color: #f4f4f4;
+  background-color: #EDEDEF;
   border-radius: 10px;
   overflow: hidden;
   touch-action: pan-y;
@@ -361,7 +361,7 @@ function formatPrice(price: number | string): string {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: #ebebeb;
+  background: #EDEDEF;
 }
 
 .image-indicators {
