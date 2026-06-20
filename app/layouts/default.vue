@@ -436,6 +436,7 @@ onUnmounted(() => {
     <Footer></Footer>
   </div>
   <Toast />
+  <PwaInstallPrompt />
 
   <!-- Сканер штрихкодов -->
   <BarcodeScannerModal v-model="scannerOpen" @detected="handleBarcodeDetected" />

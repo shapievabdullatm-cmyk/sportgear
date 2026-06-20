@@ -15,6 +15,7 @@ if (process.client) {
 </script>
 
 <template>
+    <VitePwaManifest />
     <NuxtLoadingIndicator color="#C1121C" :height="3" :throttle="200" />
     <NuxtLayout>
       <NuxtPage />
