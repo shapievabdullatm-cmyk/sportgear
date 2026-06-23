@@ -301,7 +301,7 @@ function formatProduct(product: CollectionProduct) {
 @media (max-width: 640px) {
   .product-wrapper,
   .skeleton {
-    flex: 0 0 calc((100% - 12px * 1.5) / 2.5);
+    flex: 0 0 calc((100% - 12px * 1.15) / 2.15);
     border-radius: 5px;
   }
 

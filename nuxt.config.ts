@@ -75,6 +75,16 @@ export default defineNuxtConfig({
       cleanupOutdatedCaches: true,
       runtimeCaching: [
         {
+          urlPattern: ({ request }) => request.mode === 'navigate',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'rage-pages',
+            networkTimeoutSeconds: 5,
+            expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+        {
           urlPattern: ({ url, request }) =>
             request.method === 'GET' &&
             /\/api\/(categories|brands|product-collections|sliders|quick-links|settings|blogs|blog-categories|brand-origins|manufacturing-countries|popular-categories)/.test(url.pathname),
@@ -122,7 +132,7 @@ export default defineNuxtConfig({
       periodicSyncForUpdates: 3600,
     },
     devOptions: {
-      enabled: true,
+      enabled: false,
       suppressWarnings: true,
       navigateFallback: '/',
       type: 'module',
